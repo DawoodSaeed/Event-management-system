@@ -89,4 +89,48 @@ const getUserProfile = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export { registerUser, loginUser, getUserProfile };
+// Update User Profile
+const updateUserProfile = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const user = await User.findById((req as any).user._id);
+
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    if (req.body.name) {
+      user.name = req.body.name;
+    }
+
+    if (req.body.email) {
+      user.email = req.body.email;
+    }
+
+    if (req.body.oldPassword && req.body.newPassword) {
+      const isMatch = await user.comparePassword(req.body.oldPassword);
+      if (!isMatch) {
+        res.status(400).json({ message: "Old password is incorrect" });
+        return;
+      }
+      user.password = req.body.newPassword;
+    }
+
+    const updatedUser = await user.save();
+    logger.info(`User profile updated: ${updatedUser.email}`);
+
+    res.json({
+      _id: updatedUser.id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+    });
+  } catch (error) {
+    logger.error("Error updating user profile: " + error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export { registerUser, loginUser, getUserProfile, updateUserProfile };
