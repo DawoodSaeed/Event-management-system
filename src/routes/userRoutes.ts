@@ -5,6 +5,8 @@ import {
   getUserProfile,
   updateUserProfile,
   verifyEmail,
+  resetPassword,
+  forgotPassword,
 } from "../controllers/userController";
 import { protect } from "../middleware/authMiddleware";
 
@@ -16,5 +18,8 @@ router.get("/verify-email/:token", verifyEmail);
 
 router.get("/profile", protect, getUserProfile);
 router.put("/profile", protect, updateUserProfile);
+
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password/:token", resetPassword);
 
 export default router;

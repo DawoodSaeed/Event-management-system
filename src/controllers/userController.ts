@@ -22,6 +22,13 @@ const generateVerificationToken = (id: string): string => {
   });
 };
 
+// Generate Password Reset Token
+const generateResetToken = (id: string): string => {
+  return jwt.sign({ id }, process.env.JWT_SECRET as string, {
+    expiresIn: "1h",
+  });
+};
+
 // User Registration (Sends Verification Email)
 const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -181,10 +188,66 @@ const updateUserProfile = async (
   }
 };
 
+// Forgot Password
+const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    const resetToken = generateResetToken(user.id);
+    const resetLink = `http://localhost:5000/api/users/reset-password/${resetToken}`;
+
+    const emailSubject = "Password Reset Request";
+    const emailText = `Click the link to reset your password: ${resetLink}`;
+    const emailHtml = `<p>Hello <b>${user.name}</b>,</p><p><a href="${resetLink}">Click here</a> to reset your password.</p>`;
+
+    await sendEmail(user.email, emailSubject, emailText, emailHtml);
+
+    logger.info(`Password reset link sent to: ${user.email}`);
+    res.json({ message: "Password reset email sent. Check your inbox." });
+  } catch (error) {
+    logger.error("Error sending password reset email: " + error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Reset Password
+const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body;
+
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET as string);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      res.status(400).json({ message: "Invalid or expired token" });
+      return;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    logger.info(`User reset password: ${user.email}`);
+    res.json({ message: "Password reset successfully. You can now log in." });
+  } catch (error) {
+    logger.error("Error resetting password: " + error);
+    res.status(500).json({ message: "Invalid or expired token" });
+  }
+};
+
 export {
   registerUser,
   loginUser,
   getUserProfile,
   updateUserProfile,
   verifyEmail,
+  forgotPassword,
+  resetPassword,
 };
