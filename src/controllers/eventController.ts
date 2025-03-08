@@ -25,10 +25,57 @@ const createEvent = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// Get Events with Search, Filtering & Pagination
 const getEvents = async (req: Request, res: Response): Promise<void> => {
   try {
-    const events = await Event.find().populate("createdBy", "name email");
-    res.json(events);
+    const { search, location, status, startDate, endDate, page, limit } =
+      req.query;
+
+    const query: any = {};
+
+    // Search by title or description
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Filter by location
+    if (location) {
+      query.location = { $regex: location, $options: "i" };
+    }
+
+    // Filter by event status
+    if (status) {
+      query.status = status;
+    }
+
+    // Filter by event date range
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = new Date(startDate as string);
+      if (endDate) query.date.$lte = new Date(endDate as string);
+    }
+
+    // Pagination setup
+    const pageNumber = parseInt(page as string) || 1;
+    const pageSize = parseInt(limit as string) || 10;
+    const skip = (pageNumber - 1) * pageSize;
+
+    const events = await Event.find(query)
+      .skip(skip)
+      .limit(pageSize)
+      .sort({ date: 1 }); // Sort by event date
+
+    const totalEvents = await Event.countDocuments(query);
+
+    res.json({
+      total: totalEvents,
+      page: pageNumber,
+      pageSize: pageSize,
+      events,
+    });
   } catch (error) {
     logger.error("Error fetching events: " + error);
     res.status(500).json({ message: "Server error" });
