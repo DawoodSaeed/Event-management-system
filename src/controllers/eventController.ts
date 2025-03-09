@@ -4,17 +4,52 @@ import logger from "../utils/logger";
 import { isValidObjectId } from "../utils/helpers";
 import Participant from "../models/Participant";
 import sendEmail from "../utils/sendEmail";
+import { SortOrder } from "mongoose";
 
 const getUserEvents = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log("#######################: ", (req as any).user._id);
     const userId = (req as any).user._id;
     if (!isValidObjectId(userId)) {
-      res.status(400).json({ message: "Invalid Event ID format" });
+      res.status(400).json({ message: "Invalid User ID format" });
       return;
     }
-    const events = await Event.find({ createdBy: userId });
-    res.json({ events });
+
+    const { title, location, description, startDate, endDate, sort } =
+      req.query;
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 5;
+    const skip = (page - 1) * limit;
+
+    // Build filter object
+    let filter: any = { createdBy: userId };
+
+    if (title) filter.title = { $regex: title, $options: "i" };
+    if (location) filter.location = { $regex: location, $options: "i" };
+    if (description)
+      filter.description = { $regex: description, $options: "i" };
+
+    if (startDate || endDate) {
+      filter.date = {};
+      if (startDate) filter.date.$gte = new Date(startDate as string);
+      if (endDate) filter.date.$lte = new Date(endDate as string);
+    }
+
+    // Sorting logic
+    const sortOrder: { [key: string]: SortOrder } =
+      sort === "oldest" ? { date: 1 } : { date: -1 };
+
+    const totalEvents = await Event.countDocuments(filter);
+    const events = await Event.find(filter)
+      .sort(sortOrder)
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      events,
+      totalPages: Math.ceil(totalEvents / limit),
+      currentPage: page,
+    });
   } catch (error) {
     logger.error("Error fetching user events: " + error);
     res.status(500).json({ message: "Server error" });
@@ -128,28 +163,24 @@ const getEventById = async (req: Request, res: Response): Promise<void> => {
 
 const updateEvent = async (req: Request, res: Response): Promise<void> => {
   try {
-    const event = await Event.findById(req.params.id);
+    const { title, description, location, date } = req.body;
+    const event = await Event.findOne({
+      _id: req.params.id,
+      createdBy: (req as any).user._id,
+    });
 
     if (!event) {
-      res.status(404).json({ message: "Event not found" });
+      res.status(404).json({ message: "Event not found or not owned by user" });
       return;
     }
 
-    // Only creator can delete this event ...
-    if (event.createdBy.toString() !== (req as any).user._id.toString()) {
-      res.status(403).json({ message: "Not authorized to update this event" });
-      return;
-    }
+    event.title = title || event.title;
+    event.description = description || event.description;
+    event.location = location || event.location;
+    event.date = date || event.date;
 
-    event.title = req.body.title || event.title;
-    event.description = req.body.description || event.description;
-    event.location = req.body.location || event.location;
-    event.date = req.body.date || event.date;
-
-    const updatedEvent = await event.save();
-    logger.info(`Event updated: ${updatedEvent.title}`);
-
-    res.json(updatedEvent);
+    await event.save();
+    res.json({ message: "Event updated successfully", event });
   } catch (error) {
     logger.error("Error updating event: " + error);
     res.status(500).json({ message: "Server error" });

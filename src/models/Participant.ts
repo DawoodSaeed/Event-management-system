@@ -4,7 +4,7 @@ export interface IParticipant extends Document {
   eventId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   invitationStatus: "pending" | "accepted" | "declined";
-  joinedAt: Date;
+  createdAt: Date;
 }
 
 const ParticipantSchema: Schema = new Schema(
@@ -17,7 +17,7 @@ const ParticipantSchema: Schema = new Schema(
       default: "pending",
     },
   },
-  { timestamps: { createdAt: "joinedAt" } }
+  { timestamps: true }
 );
 
 export default mongoose.model<IParticipant>("Participant", ParticipantSchema);
