@@ -93,20 +93,33 @@ const sendInvitation = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (event.createdBy.toString() !== senderId) {
+    if (event.createdBy.toString() !== senderId.toString()) {
       res
         .status(403)
         .json({ message: "Only event creators can send invitations" });
       return;
     }
 
-    const existingParticipant = await Participant.findOne({ eventId, userId });
+    // ✅ Check if user has already been invited and is still pending/accepted
+    const existingParticipant = await Participant.findOne({
+      eventId,
+      userId,
+      invitationStatus: { $in: ["pending", "accepted"] }, // ✅ Prevent re-inviting accepted users
+    });
+
     if (existingParticipant) {
-      res.status(400).json({ message: "User already invited" });
+      res
+        .status(400)
+        .json({ message: "User is already invited or has joined the event" });
       return;
     }
 
-    await Participant.create({ eventId, userId, invitationStatus: "pending" });
+    // ✅ Allow re-inviting if the user previously declined
+    await Participant.findOneAndUpdate(
+      { eventId, userId },
+      { invitationStatus: "pending" }, // ✅ Reset invitation status
+      { upsert: true, new: true }
+    );
 
     const recipient = await User.findById(userId);
     if (event.status === "approved" && recipient) {

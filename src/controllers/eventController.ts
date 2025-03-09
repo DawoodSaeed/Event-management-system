@@ -89,6 +89,7 @@ const getEvents = async (req: Request, res: Response): Promise<void> => {
   try {
     const { search, location, status, startDate, endDate, page, limit } =
       req.query;
+    const userId = (req as any).user._id; // Logged-in user
 
     const query: any = {};
 
@@ -125,7 +126,43 @@ const getEvents = async (req: Request, res: Response): Promise<void> => {
     const events = await Event.find(query)
       .skip(skip)
       .limit(pageSize)
-      .sort({ date: 1 }); // Sort by event date
+      .sort({ date: 1 })
+      .lean();
+
+    if (!events || events.length === 0) {
+      res.json({
+        totalPages: 0,
+        total: 0,
+        page: pageNumber,
+        pageSize,
+        events: [],
+      });
+      return;
+    }
+
+    const joinedEventIds = new Set(
+      (
+        await Participant.find({
+          userId,
+          invitationStatus: "accepted",
+        }).distinct("eventId")
+      ).map((id) => id.toString())
+    );
+
+    const updatedEvents = events
+      .map((event) => {
+        if (!event._id) {
+          console.warn("Warning: Event missing _id", event); // Log for debugging
+          return null; // Skip events without _id
+        }
+
+        return {
+          ...event,
+          _id: event._id.toString(),
+          hasJoined: joinedEventIds.has(event._id.toString()),
+        };
+      })
+      .filter(Boolean);
 
     const totalEvents = await Event.countDocuments(query);
 
@@ -134,9 +171,10 @@ const getEvents = async (req: Request, res: Response): Promise<void> => {
       total: totalEvents,
       page: pageNumber,
       pageSize: pageSize,
-      events,
+      events: updatedEvents,
     });
   } catch (error) {
+    console.error(" Error fetching events:", error);
     logger.error("Error fetching events: " + error);
     res.status(500).json({ message: "Server error" });
   }
@@ -303,6 +341,38 @@ const adminDeleteEvent = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+const getPendingEventsForAdmin = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalPendingEvents = await Event.countDocuments({
+      status: "pending",
+    });
+
+    const pendingEvents = await Event.find({ status: "pending" })
+      .skip(skip)
+      .limit(limit)
+      .sort({ date: 1 })
+      .lean();
+
+    res.json({
+      totalPages: Math.ceil(totalPendingEvents / limit),
+      total: totalPendingEvents,
+      page,
+      pageSize: limit,
+      events: pendingEvents,
+    });
+  } catch (error) {
+    logger.error("Error fetching pending events: " + error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 export {
   createEvent,
   getEvents,
@@ -313,4 +383,5 @@ export {
   adminEditEvent,
   adminDeleteEvent,
   getUserEvents,
+  getPendingEventsForAdmin,
 };

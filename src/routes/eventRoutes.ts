@@ -9,6 +9,7 @@ import {
   adminEditEvent,
   adminDeleteEvent,
   getUserEvents,
+  getPendingEventsForAdmin,
 } from "../controllers/eventController";
 
 // Middlewares....
@@ -17,9 +18,10 @@ import { isAdmin } from "../middleware/adminMiddleware";
 
 const router = express.Router();
 router.get("/my-events", protect, getUserEvents);
+router.get("/admin/pending-events", protect, isAdmin, getPendingEventsForAdmin);
 
 // unprotected routes ###########
-router.get("/", getEvents);
+router.get("/", protect, getEvents);
 router.get("/:id", getEventById);
 
 // ptotected routes/..,.
