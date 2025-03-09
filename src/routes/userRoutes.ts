@@ -7,6 +7,8 @@ import {
   verifyEmail,
   resetPassword,
   forgotPassword,
+  verifyToken,
+  getAllUsers,
 } from "../controllers/userController";
 import { protect } from "../middleware/authMiddleware";
 
@@ -21,5 +23,9 @@ router.put("/profile", protect, updateUserProfile);
 
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
+
+router.get("/verify-token", protect, verifyToken);
+
+router.get("/all", protect, getAllUsers);
 
 export default router;

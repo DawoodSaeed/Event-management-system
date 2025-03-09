@@ -8,6 +8,7 @@ import {
   approveEvent,
   adminEditEvent,
   adminDeleteEvent,
+  getUserEvents,
 } from "../controllers/eventController";
 
 // Middlewares....
@@ -15,6 +16,7 @@ import { protect } from "../middleware/authMiddleware";
 import { isAdmin } from "../middleware/adminMiddleware";
 
 const router = express.Router();
+router.get("/my-events", protect, getUserEvents);
 
 // unprotected routes ###########
 router.get("/", getEvents);

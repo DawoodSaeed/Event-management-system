@@ -116,6 +116,7 @@ const loginUser = async (req: Request, res: Response): Promise<void> => {
       _id: user.id,
       name: user.name,
       email: user.email,
+      role: user.role,
       token: generateToken(user.id),
     });
   } catch (error) {
@@ -242,6 +243,37 @@ const resetPassword = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+const verifyToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const token = req.header("Authorization")?.split(" ")[1];
+    if (!token) {
+      res.status(401).json({ message: "No token provided" });
+      return;
+    }
+
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET as string);
+    const user = await User.findById(decoded.id).select("-password"); // Exclude password
+
+    if (!user) {
+      res.status(401).json({ message: "Invalid token" });
+      return;
+    }
+
+    res.json({ user });
+  } catch (error) {
+    res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
+const getAllUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const users = await User.find().select("-password"); // Exclude passwords
+    res.json({ users });
+  } catch (error) {
+    logger.error("Error fetching users: " + error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 export {
   registerUser,
   loginUser,
@@ -250,4 +282,6 @@ export {
   verifyEmail,
   forgotPassword,
   resetPassword,
+  verifyToken,
+  getAllUsers,
 };

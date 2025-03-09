@@ -2,23 +2,47 @@ import { Request, Response } from "express";
 import Event from "../models/Event";
 import logger from "../utils/logger";
 import { isValidObjectId } from "../utils/helpers";
+import Participant from "../models/Participant";
+import sendEmail from "../utils/sendEmail";
+
+const getUserEvents = async (req: Request, res: Response): Promise<void> => {
+  try {
+    console.log("#######################: ", (req as any).user._id);
+    const userId = (req as any).user._id;
+    if (!isValidObjectId(userId)) {
+      res.status(400).json({ message: "Invalid Event ID format" });
+      return;
+    }
+    const events = await Event.find({ createdBy: userId });
+    res.json({ events });
+  } catch (error) {
+    logger.error("Error fetching user events: " + error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 const createEvent = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { title, description, location, date } = req.body;
+    const { title, description, location, date, participants } = req.body;
+    const userId = (req as any).user._id;
 
-    const newEvent = new Event({
+    const event = await Event.create({
       title,
       description,
       location,
       date,
-      createdBy: (req as any).user._id,
+      createdBy: userId,
+      status: "pending",
     });
 
-    const savedEvent = await newEvent.save();
-    logger.info(`Event created: ${savedEvent.title}`);
+    // Store participants separately
+    if (participants && participants.length > 0) {
+      for (const participantId of participants) {
+        await Participant.create({ eventId: event._id, userId: participantId });
+      }
+    }
 
-    res.status(201).json(savedEvent);
+    res.status(201).json({ message: "Event created successfully", event });
   } catch (error) {
     logger.error("Error creating event: " + error);
     res.status(500).json({ message: "Server error" });
@@ -60,7 +84,7 @@ const getEvents = async (req: Request, res: Response): Promise<void> => {
 
     // Pagination setup
     const pageNumber = parseInt(page as string) || 1;
-    const pageSize = parseInt(limit as string) || 10;
+    const pageSize = parseInt(limit as string) || 5;
     const skip = (pageNumber - 1) * pageSize;
 
     const events = await Event.find(query)
@@ -71,6 +95,7 @@ const getEvents = async (req: Request, res: Response): Promise<void> => {
     const totalEvents = await Event.countDocuments(query);
 
     res.json({
+      totalPages: Math.ceil(totalEvents / pageSize),
       total: totalEvents,
       page: pageNumber,
       pageSize: pageSize,
@@ -158,32 +183,35 @@ const deleteEvent = async (req: Request, res: Response): Promise<void> => {
 // ADMIN METHODS #######################################
 const approveEvent = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status } = req.body;
-
-    if (!isValidObjectId(req.params.id)) {
-      res.status(400).json({ message: "Invalid Event ID format" });
-      return;
-    }
-
     const event = await Event.findById(req.params.id);
-
     if (!event) {
       res.status(404).json({ message: "Event not found" });
       return;
     }
 
-    if (!["approved", "rejected"].includes(status)) {
-      res
-        .status(400)
-        .json({ message: "Invalid status. Use 'approved' or 'rejected'" });
+    if (event.status === "approved") {
+      res.status(400).json({ message: "Event is already approved" });
       return;
     }
 
-    event.status = status;
+    event.status = "approved";
     await event.save();
 
-    logger.info(`Admin updated event ${event._id} to status: ${status}`);
-    res.json({ message: `Event ${status}` });
+    // Fetch participants
+    const participants = await Participant.find({
+      eventId: event._id,
+    }).populate("userId", "email name");
+
+    const participantEmails = participants.map((p: any) => p.userId.email);
+
+    const subject = `Your Invitation to ${event.title}`;
+    const message = `You have been invited to the event: ${event.title} on ${event.date}. Location: ${event.location}`;
+
+    for (const email of participantEmails) {
+      await sendEmail(email, subject, message);
+    }
+
+    res.json({ message: "Event approved and invitations sent" });
   } catch (error) {
     logger.error("Error approving event: " + error);
     res.status(500).json({ message: "Server error" });
@@ -253,4 +281,5 @@ export {
   approveEvent,
   adminEditEvent,
   adminDeleteEvent,
+  getUserEvents,
 };
