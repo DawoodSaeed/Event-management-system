@@ -3,3 +3,7 @@ MONGO_URI=mongodb://localhost:27017/event_management
 JWT_SECRET=3f8bGv9!yK@#X2d$LpZ6%wR^M8*qT1
 EMAIL_USER=dawoodsaeed.work@gmail.com
 EMAIL_PASS=caf01bb5a1077c
+
+
+
+http://localhost:5000/api/users/verify-email/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZTNhYTYwN2RiZmFkNWZhYTQ4NTEyMyIsImlhdCI6MTc0Mjk3MzUzNiwiZXhwIjoxNzQzMDU5OTM2fQ.HXQ0rPjynpyLCtyFGVnTJ47QPO0dMObag7N4r5hhzB0
