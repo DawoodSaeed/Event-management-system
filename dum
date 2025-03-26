@@ -1,0 +1,5 @@
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/event_management
+JWT_SECRET=3f8bGv9!yK@#X2d$LpZ6%wR^M8*qT1
+EMAIL_USER=dawoodsaeed.work@gmail.com
+EMAIL_PASS=caf01bb5a1077c
